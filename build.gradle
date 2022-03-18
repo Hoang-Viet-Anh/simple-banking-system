@@ -21,6 +21,32 @@ subprojects {
             languageVersion = JavaLanguageVersion.of(testJava)
         }
     }
+    
+    jar {
+    	manifest {
+    		attributes "Main-Class": "banking.Main"
+    	}
+    	duplicatesStrategy "exclude"
+    	from { 
+    		configurations.runtimeClasspath.collect { 
+    			it.isDirectory() ? it : zipTree(it) 
+    		}
+    	} 
+    }
+    
+    task fatJar(type: Jar) {
+    	manifest {
+    		attributes "Main-Class": "banking.Main"
+    	}
+    	archiveClassifier = "all"
+    	duplicatesStrategy "exclude"
+    	from { 
+    		configurations.runtimeClasspath.collect { 
+    			it.isDirectory() ? it : zipTree(it) 
+    		}
+    	}
+    	with jar
+    }
 
     repositories {
         mavenCentral()
