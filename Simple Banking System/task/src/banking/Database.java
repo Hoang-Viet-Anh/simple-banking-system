@@ -4,6 +4,7 @@ import org.sqlite.SQLiteDataSource;
 
 import java.sql.*;
 import java.util.Arrays;
+import java.util.Scanner;
 
 public class Database {
 
@@ -26,6 +27,20 @@ public class Database {
         url += filename;
         dataSource = new SQLiteDataSource();
         dataSource.setUrl(url);
+        try {
+            getConnection();
+        } catch (SQLException exc) {
+            System.out.println("Connection failed.");
+            System.exit(0);
+        }
+        //Create table if not exists
+        try {
+            createTable();
+        } catch (SQLException exc) {
+            System.out.println("Failed to create table.");
+            System.err.println(exc);
+            System.exit(0);
+        }
     }
     //Set url to database
     public Database (String[] args) {
@@ -33,6 +48,20 @@ public class Database {
         url += args[++index];
         dataSource = new SQLiteDataSource();
         dataSource.setUrl(url);
+        try {
+            getConnection();
+        } catch (SQLException exc) {
+            System.out.println("Connection failed.");
+            System.exit(0);
+        }
+        //Create table if not exists
+        try {
+            createTable();
+        } catch (SQLException exc) {
+            System.out.println("Failed to create table.");
+            System.err.println(exc);
+            System.exit(0);
+        }
     }
     //Connection to db
     public void getConnection() throws SQLException {
@@ -132,6 +161,7 @@ public class Database {
         preparedStatement.setString(1, number);
         preparedStatement.setInt(2, pin);
         preparedStatement.executeUpdate();
+        System.out.println("\nThe account has been closed!\n");
     }
     //Close connection to db
     public void closeConnection() throws SQLException {
@@ -139,4 +169,159 @@ public class Database {
         statement.close();
     }
 
+    public void printMenu() {
+        System.out.println("1. Create an account");
+        System.out.println("2. Log into account");
+        System.out.println("0. Exit");
+    }
+
+    public void printCreateChoice() {
+        Account account;
+        String cardNumber;
+        try {
+            do {
+                //Creates Account class instance that generate
+                //card number according to Luhn algorithm and pin code
+                account = new Account();
+                //Getting card number
+                cardNumber = account.getCardNumber();
+                //Checking if card number is already exists
+                //If exists then generate another card number and pin code
+            } while(findNumber(cardNumber));
+            //After checking for unique card number then
+            //add card to database
+            addCard(cardNumber, account.getPinCode());
+            //Print info about card number and pin code to user
+            System.out.println("\nYour card has been created");
+            System.out.println("Your card number:");
+            System.out.println(cardNumber);
+            System.out.println("Your card PIN:");
+            System.out.println(account.getPinCode() + "\n");
+        } catch (SQLException exc) {
+            System.err.println(exc.toString());
+        }
+    }
+
+    public void printMenuLIA() {
+        System.out.println("\n1. Balance");
+        System.out.println("2. Add income");
+        System.out.println("3. Do transfer");
+        System.out.println("4. Close account");
+        System.out.println("5. Log out");
+        System.out.println("0. Exit");
+    }
+
+    public void printAddIncomeChoice(String cardNumber, Scanner scanner2) {
+        System.out.println("\nEnter income:");
+        try {
+            addBalance(cardNumber, scanner2.nextInt());
+        } catch (SQLException ignored) {}
+        System.out.println("Income was added!");
+    }
+
+    public void printTransferChoice(String cardNumber, int pin, Scanner scanner1, Scanner scanner2) {
+        String cardNumber2;
+        int amount;
+
+        System.out.println("\nTransfer");
+        System.out.println("Enter card number:");
+        cardNumber2 = scanner1.nextLine();
+
+        //Checking card through Luhn algorithm
+        if (!checkLuhnAlgorithm(cardNumber2)) {
+            System.out.println("Probably you made a mistake in the card number.");
+            System.out.println("Please try again!");
+        } else {
+            //Find card in database
+            try {
+                if (!findNumber(cardNumber2)) {
+                    System.out.println("Such a card does not exist.");
+
+                } else {
+                    //Scanning amount of money to transfer
+                    System.out.println("Enter how much money you want to transfer:");
+                    amount = scanner2.nextInt();
+                    //Checking balance for transfer
+                    if (amount > getBalance(cardNumber, pin)) {
+                        System.out.println("Not enough money!");
+                    } else {
+                        //Transfer money to another account
+                        doTransfer(cardNumber, cardNumber2, amount);
+                        System.out.println("Success!");
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void printExitChoice() {
+        System.out.println("\nBye!");
+        try {
+            closeConnection();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        System.exit(0);
+    }
+
+    public void printLogIntoAccountChoice(Scanner scanner1, Scanner scanner2) {
+        String cardNumber, cardNumber2, choose;
+        int amount, pin, balance;
+
+        System.out.println("\nEnter your card number:");
+        cardNumber = scanner1.nextLine();
+        System.out.println("Enter your PIN:");
+        pin = scanner2.nextInt();
+
+        try {
+            //Checking in database if card number and pin code match
+            if (logIntoAccount(cardNumber, pin)) {
+                System.out.println("\nYou have successfully logged in!");
+
+                //Loop inside account menu choice
+                logout:
+                while (true) {
+                    printMenuLIA();
+                    choose = scanner1.nextLine();
+                    balance = getBalance(cardNumber, pin);
+
+                    switch (choose) {
+                        //Show user balance
+                        case "1":
+                            System.out.println("\nBalance: " + balance);
+                            break;
+                        //Top up account
+                        case "2":
+                            printAddIncomeChoice(cardNumber, scanner2);
+                            break;
+                        //Transfer to another account
+                        case "3":
+                            printTransferChoice(cardNumber, pin, scanner1, scanner2);
+                            break;
+                        //Delete account
+                        case "4":
+                            deleteAccount(cardNumber, pin);
+                            break logout;
+                        //Log out
+                        case "5":
+                            System.out.println("\nYou have successfully logged out!");
+                            break logout;
+                        //System exit
+                        case "0":
+                            printExitChoice();
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            } else {
+                //If card number and pin mismatch
+                System.out.println("\nWrong card number or PIN!\n");
+            }
+        } catch (SQLException exc) {
+            System.err.println(exc.toString());
+        }
+    }
 }
