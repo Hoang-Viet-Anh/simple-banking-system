@@ -21,7 +21,7 @@ subprojects {
             languageVersion = JavaLanguageVersion.of(testJava)
         }
     }
-
+    
     jar {
         manifest {
             attributes "Main-Class": "banking.Main"
@@ -47,7 +47,7 @@ subprojects {
         }
         with jar
     }
-
+    
     repositories {
         mavenCentral()
         maven { url "https://jitpack.io" }
